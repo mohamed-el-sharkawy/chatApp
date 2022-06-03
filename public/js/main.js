@@ -9,8 +9,14 @@ const socket = io();
 
 socket.emit('joinRoom', { username, room });
 
+socket.on('roomUsers', ({ room, users }) => {
+    outputRoomName(room);
+    outputUsers(users);
+});
+
 socket.on('message', (message) => {
     outMessage(message);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 });
 
 socket.on('chatMessage', (message) => {
@@ -39,4 +45,17 @@ function outMessage(msg) {
     ${msg.text}
   </p>`;
     document.querySelector('.chat-messages').appendChild(div);
+}
+
+function outputRoomName(room) {
+    const roomName = document.getElementById('room-name');
+    roomName.innerText = room;
+}
+
+function outputUsers(users) {
+    const usersList = document.getElementById('users');
+
+    usersList.innerHTML = `
+        ${users.map((user) => `<li>${user.username}</li>`).join('')}
+    `;
 }
