@@ -13,30 +13,57 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 io.on('connection', (socket) => {
-    socket.on('joinRoom', ({ username, room }) => {
+    socket.on('joinRoom', async ({ username, room }) => {
+        const user = new User({ socketId: socket.id, username, room });
+        await user.save();
+
+        socket.join(room);
+
         socket.emit(
             'message',
             formatMessages('ChatApp', `Welcome to ${room} room`)
         );
 
-        socket.broadcast.emit(
-            'message',
-            formatMessages(
-                'ChatApp',
-                `${username} has joinded the room ${room}`
-            )
-        );
+        socket.broadcast
+            .to(room)
+            .emit(
+                'message',
+                formatMessages(
+                    'ChatApp',
+                    `${username} has joinded the room ${room}`
+                )
+            );
+
+        io.to(room).emit('roomUsers', {
+            room,
+            users: await User.find({ room }),
+        });
     });
 
-    socket.on('chatMessage', (msg) => {
-        io.emit('chatMessage', formatMessages('USER', msg));
+    socket.on('chatMessage', async (msg) => {
+        const user = await User.findOne({ socketId: socket.id });
+        if (user) {
+            io.to(user.room).emit(
+                'chatMessage',
+                formatMessages(`${user.username}`, msg)
+            );
+        }
     });
 
-    socket.on('disconnect', () => {
-        io.emit(
-            'message',
-            formatMessages('ChatApp', 'A user has left the chat')
-        );
+    socket.on('disconnect', async () => {
+        const user = await User.findOne({ socketId: socket.id });
+        if (user) {
+            io.to(user.room).emit(
+                'message',
+                formatMessages('ChatApp', `${user.username} has left the chat`)
+            );
+            user.delete();
+
+            io.to(user.room).emit('roomUsers', {
+                room: user.room,
+                users: await User.find({ room: user.room }),
+            });
+        }
     });
 });
 
